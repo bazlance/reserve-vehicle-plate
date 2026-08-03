@@ -1,0 +1,21 @@
+{
+  "name": "reserve-vehicle-plate",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright automation for DLT vehicle plate reservation (reserve.dlt.go.th)",
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "ts-node src/index.ts",
+    "install-browsers": "playwright install chromium"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "playwright": "^1.47.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
+  }
+}
