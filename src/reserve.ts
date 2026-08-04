@@ -81,6 +81,32 @@ export async function runReservation(
     );
   }
 
+  // pers=1 (individual): r_idcard/prefixZQ/r_fname/r_lname are pre-filled
+  // read-only from the ThaID login session — do not touch them (they're
+  // not even editable). pers=2 (corporate/foreign): the same fields are
+  // empty and required instead, since the applicant may not be the logged
+  // -in individual (e.g. a company or a foreigner's passport).
+  if (config.pers === "2") {
+    if (!config.applicant) {
+      throw new Error("pers=2 requires config.applicant but none was loaded");
+    }
+    const availablePrefixes = await page.$$eval("#prefixZQ option", (opts) =>
+      opts.map((o) => (o as HTMLOptionElement).value),
+    );
+    if (!availablePrefixes.includes(config.applicant.prefix)) {
+      throw new Error(
+        `DLT_APPLICANT_PREFIX="${config.applicant.prefix}" is not one of the options on the live page. ` +
+          `Available values: ${availablePrefixes.join(", ")}`,
+      );
+    }
+    await page.type("#r_idcard", config.applicant.idCard, { delay: TYPE_DELAY_MS });
+    await page.selectOption("#prefixZQ", config.applicant.prefix);
+    await page.type("#r_fname", config.applicant.fname, { delay: TYPE_DELAY_MS });
+    if (config.applicant.lname) {
+      await page.type("#r_lname", config.applicant.lname, { delay: TYPE_DELAY_MS });
+    }
+  }
+
   await page.type("#r_bodynumber", config.bodyNumber, { delay: TYPE_DELAY_MS });
   await page.selectOption("#r_brand", config.brand);
   await page.type("#r_tel", config.tel, { delay: TYPE_DELAY_MS });

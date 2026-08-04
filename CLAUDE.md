@@ -33,7 +33,11 @@ Four files in `src/`, run in sequence by `src/index.ts`:
 1. **`config.ts`** — loads and validates `.env` into a typed `Config`
    (vehicle body/chassis number, brand, phone, desired 4-digit plate number,
    car type, applicant type). Fails fast on missing/malformed values; no
-   defaults for personal-data fields. Copy `.env.example` to `.env` to run.
+   defaults for personal-data fields. When `DLT_PERS=2`, also requires and
+   loads `config.applicant` (trade-registration/passport number, title,
+   name, surname) — unset/unused when `DLT_PERS=1`, since those fields come
+   from the ThaID login on the site instead. Copy `.env.example` to `.env`
+   to run.
 
 2. **`login.ts`** — navigates to the DLT entry URL, which redirects through
    ThaID OAuth2 (`imauth.bora.dopa.go.th`) to a QR code page. The QR-scan
@@ -62,6 +66,14 @@ Four files in `src/`, run in sequence by `src/index.ts`:
      (not `page.fill()`) so per-keystroke timing is realistic — the fields
      have `onKeyPress`/`onKeyUp` handlers the behavior-detection script relies
      on.
+   - `r_idcard`/`prefixZQ`/`r_fname`/`r_lname` behave differently depending
+     on `pers`: for `pers=1` (individual) they're pre-filled read-only
+     from the ThaID login and must not be touched; for `pers=2`
+     (corporate/foreign) they're empty and required instead (the applicant
+     may not be the logged-in individual — e.g. a company or a foreigner's
+     passport). `reserve.ts` branches on `config.pers` and only fills/selects
+     them for `pers=2`, validating `prefixZQ` against the live option list
+     the same way as `r_brand`.
    - Clicks `#s_resz` to submit.
 
 4. **`index.ts`** — entrypoint. Launches headed Chromium, and — important —
