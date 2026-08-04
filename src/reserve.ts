@@ -10,6 +10,7 @@ export interface ReservationResult {
   screenshotPath: string;
   pageTitle: string;
   bodyText: string;
+  submitStatus: number;
 }
 
 async function clickAndWaitForNav(page: Page, selector: string): Promise<void> {
@@ -23,17 +24,25 @@ function extractConfirmId(formAction: string, pageUrl: string): string {
   const resolved = new URL(formAction, pageUrl);
   const confirmId = resolved.searchParams.get("confirm");
   if (!confirmId) {
-    throw new Error(`Could not find "confirm" id in #f_rule action="${formAction}"`);
+    throw new Error(
+      `Could not find "confirm" id in #f_rule action="${formAction}"`,
+    );
   }
   return confirmId;
 }
 
-export async function runReservation(page: Page, config: Config, screenshotDir: string): Promise<ReservationResult> {
+export async function runReservation(
+  page: Page,
+  config: Config,
+  screenshotDir: string,
+): Promise<ReservationResult> {
   // Step 2.1 — scrape the current round's confirm id from the accept-rules
   // form (it rotates between reservation rounds) and accept the rules.
   const formAction = await page.getAttribute("#f_rule", "action");
   if (!formAction) {
-    throw new Error("#f_rule has no action attribute — page structure may have changed");
+    throw new Error(
+      "#f_rule has no action attribute — page structure may have changed",
+    );
   }
   const confirmId = extractConfirmId(formAction, page.url());
   console.log(`Detected reservation round confirm=${confirmId}`);
@@ -59,15 +68,16 @@ export async function runReservation(page: Page, config: Config, screenshotDir: 
   await clickAndWaitForNav(page, persSelector);
 
   // Step 2.4 — fill and submit the reservation form.
+  const persUrl = page.url();
   await page.waitForSelector("#f_reserve", { timeout: NAV_TIMEOUT_MS });
 
   const availableBrands = await page.$$eval("#r_brand option", (opts) =>
-    opts.map((o) => (o as HTMLOptionElement).value)
+    opts.map((o) => (o as HTMLOptionElement).value),
   );
   if (!availableBrands.includes(config.brand)) {
     throw new Error(
       `DLT_R_BRAND="${config.brand}" is not one of the options on the live page. ` +
-        `Available values include: ${availableBrands.slice(0, 15).join(", ")}...`
+        `Available values include: ${availableBrands.slice(0, 15).join(", ")}...`,
     );
   }
 
@@ -76,15 +86,33 @@ export async function runReservation(page: Page, config: Config, screenshotDir: 
   await page.type("#r_tel", config.tel, { delay: TYPE_DELAY_MS });
   await page.type("#number", config.desiredNumber, { delay: TYPE_DELAY_MS });
 
+  // Capture the actual HTTP response of the submit POST itself, decoupled
+  // from waiting for the page to fully navigate/settle — a slow or fuzzy
+  // navigation event shouldn't discard a status code we already have. A 500
+  // here is Imperva's WAF block signature (see comment above), not a real
+  // DLT verdict; any other status is a genuine DLT response, but note that
+  // 200 alone doesn't mean "approved" — DLT returns 200 for rejections too
+  // (e.g. a brand/chassis mismatch), so the actual outcome still has to be
+  // read from the page content below.
+  const responsePromise = page.waitForResponse(
+    (res) => res.request().method() === "POST" && res.url() === persUrl,
+    { timeout: SUBMIT_TIMEOUT_MS },
+  );
   // page.click() has its own built-in wait for any navigation the click
   // triggers, using its own default 30s timeout — independent of the
-  // waitForNavigation timeout above. Without matching it explicitly, the
-  // click's internal wait can time out before our intended budget is used,
-  // even though the real navigation was still going to happen.
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: "load", timeout: SUBMIT_TIMEOUT_MS }),
-    page.click("#s_resz", { timeout: SUBMIT_TIMEOUT_MS }),
-  ]);
+  // response wait above. Without matching it explicitly, the click's
+  // internal wait can time out before our intended budget is used, even
+  // though the real navigation was still going to happen.
+  await page.click("#s_resz", { timeout: SUBMIT_TIMEOUT_MS });
+  const submitResponse = await responsePromise;
+  const submitStatus = submitResponse.status();
+
+  // Best-effort: let the page finish settling after the response before
+  // capturing its content. Not fatal if this doesn't resolve cleanly — we
+  // already have the response status, which is the reliable signal.
+  await page
+    .waitForLoadState("load", { timeout: SUBMIT_TIMEOUT_MS })
+    .catch(() => {});
 
   const screenshotPath = `${screenshotDir}/result-${Date.now()}.png`;
   await page.screenshot({ path: screenshotPath, fullPage: true });
@@ -92,5 +120,5 @@ export async function runReservation(page: Page, config: Config, screenshotDir: 
   const pageTitle = await page.title();
   const bodyText = (await page.locator("body").innerText()).slice(0, 2000);
 
-  return { confirmId, screenshotPath, pageTitle, bodyText };
+  return { confirmId, screenshotPath, pageTitle, bodyText, submitStatus };
 }

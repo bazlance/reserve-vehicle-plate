@@ -21,8 +21,7 @@ async function main(): Promise<void> {
   const harPath = `${DEBUG_DIR}/run-${Date.now()}.har`;
 
   const browser = await chromium.launch({ headless: false });
-  // Record the full network trace (including the raw context.request calls
-  // used in the hybrid API steps) so a failure can be diagnosed from the
+  // Record the full network trace so a failure can be diagnosed from the
   // actual requests/responses instead of guessing — same approach used to
   // reverse-engineer the flow from reserve.dlt.go.th.har originally.
   const context = await browser.newContext({ recordHar: { path: harPath, content: "embed" } });
@@ -42,16 +41,26 @@ async function main(): Promise<void> {
 
     console.log("\n=== Reservation submitted ===");
     console.log(`Round (confirm id): ${result.confirmId}`);
+    console.log(`Submit response status: ${result.submitStatus}`);
     console.log(`Page title: ${result.pageTitle}`);
     console.log(`Screenshot: ${result.screenshotPath}`);
     console.log("\n--- Page text (first 2000 chars) ---");
     console.log(result.bodyText);
     console.log("-------------------------------------");
-    console.log(
-      "\nSuccess/failure could not be auto-detected with certainty (no confirmed " +
-        "success message was available at build time). Please verify the outcome " +
-        "in the browser window and/or the screenshot above."
-    );
+    if (result.submitStatus === 500) {
+      console.log(
+        "\nHTTP 500 on the submit — this matches the site's Imperva bot-defense " +
+          "block signature seen in prior runs, not a real DLT verdict. This attempt " +
+          "did not go through; just retry."
+      );
+    } else {
+      console.log(
+        `\nGot a real response from DLT (HTTP ${result.submitStatus}), not a WAF block. ` +
+          "That status alone doesn't confirm approval, though — DLT returns 200 for " +
+          "rejections too (e.g. a brand/chassis mismatch). Read the page text/screenshot " +
+          "above to see the actual verdict."
+      );
+    }
   } catch (err) {
     console.error("\nReservation flow failed:", err instanceof Error ? err.message : err);
     // A thrown error (e.g. a wait timing out) doesn't mean the page didn't
