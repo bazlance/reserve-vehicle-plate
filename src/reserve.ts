@@ -2,7 +2,7 @@ import { Page } from "playwright";
 import { Config } from "./config";
 
 const NAV_TIMEOUT_MS = 30_000;
-const SUBMIT_TIMEOUT_MS = 45_000; // confirm() dialog round-trip + invisible reCAPTCHA verification adds latency before the real POST fires
+const SUBMIT_TIMEOUT_MS = 90_000; // confirm() dialog round-trip + invisible reCAPTCHA verification observed to take well over 45s in practice
 const TYPE_DELAY_MS = 90; // per-keystroke delay so behavior-detection.js sees realistic timing, not a burst
 
 export interface ReservationResult {
@@ -38,6 +38,14 @@ export async function runReservation(page: Page, config: Config, screenshotDir: 
   const confirmId = extractConfirmId(formAction, page.url());
   console.log(`Detected reservation round confirm=${confirmId}`);
 
+  // Steps 2.1-2.3 are driven as real clicks, not raw HTTP calls. An earlier
+  // attempt fired them via context.request (with browser-matched headers) to
+  // save time; that run got the real final submit blocked by Imperva
+  // Incapsula (500). A later run using real clicks for every step got the
+  // same block too, so raw HTTP isn't confirmed as the cause — the block
+  // looks like intermittent WAF session-risk scoring that isn't fully
+  // understood. Real clicks are kept because they're the only approach
+  // proven to work when Imperva doesn't intervene; retry on a 500.
   await clickAndWaitForNav(page, "#f_rule input[type=submit]");
 
   // Step 2.2 — pick car type.
@@ -68,9 +76,14 @@ export async function runReservation(page: Page, config: Config, screenshotDir: 
   await page.type("#r_tel", config.tel, { delay: TYPE_DELAY_MS });
   await page.type("#number", config.desiredNumber, { delay: TYPE_DELAY_MS });
 
+  // page.click() has its own built-in wait for any navigation the click
+  // triggers, using its own default 30s timeout — independent of the
+  // waitForNavigation timeout above. Without matching it explicitly, the
+  // click's internal wait can time out before our intended budget is used,
+  // even though the real navigation was still going to happen.
   await Promise.all([
     page.waitForNavigation({ waitUntil: "load", timeout: SUBMIT_TIMEOUT_MS }),
-    page.click("#s_resz"),
+    page.click("#s_resz", { timeout: SUBMIT_TIMEOUT_MS }),
   ]);
 
   const screenshotPath = `${screenshotDir}/result-${Date.now()}.png`;
