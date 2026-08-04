@@ -44,7 +44,7 @@ async function main(): Promise<void> {
     console.log(`Submit response status: ${result.submitStatus}`);
     console.log(`Page title: ${result.pageTitle}`);
     console.log(`Screenshot: ${result.screenshotPath}`);
-    console.log("\n--- Page text (first 2000 chars) ---");
+    console.log("\n--- Page text (first 1000 chars) ---");
     console.log(result.bodyText);
     console.log("-------------------------------------");
     if (result.submitStatus === 500) {
@@ -76,8 +76,8 @@ async function main(): Promise<void> {
     try {
       console.error(`Current URL: ${page.url()}`);
       console.error(`Current page title: ${await page.title()}`);
-      console.error("--- Current page text (first 2000 chars) ---");
-      console.error((await page.locator("body").innerText()).slice(0, 2000));
+      console.error("--- Current page text (first 1000 chars) ---");
+      console.error((await page.locator("body").innerText()).slice(0, 1000));
     } catch {
       // page may already be closed/navigating; the screenshot above is the fallback
     }

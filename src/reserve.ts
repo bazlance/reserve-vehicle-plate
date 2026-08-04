@@ -118,7 +118,7 @@ export async function runReservation(
   await page.screenshot({ path: screenshotPath, fullPage: true });
 
   const pageTitle = await page.title();
-  const bodyText = (await page.locator("body").innerText()).slice(0, 2000);
+  const bodyText = (await page.locator("body").innerText()).slice(0, 1000);
 
   return { confirmId, screenshotPath, pageTitle, bodyText, submitStatus };
 }
