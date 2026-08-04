@@ -38,8 +38,8 @@ export function loadConfig(): Config {
   const carType = required("DLT_CAR_TYPE");
   const pers = required("DLT_PERS");
 
-  if (!/^\d{4}$/.test(desiredNumber)) {
-    throw new Error(`DLT_DESIRED_NUMBER must be exactly 4 digits, got "${desiredNumber}"`);
+  if (!/^\d{2,4}$/.test(desiredNumber)) {
+    throw new Error(`DLT_DESIRED_NUMBER must be 2 to 4 digits, got "${desiredNumber}"`);
   }
   if (!/^\d{9,10}$/.test(tel)) {
     throw new Error(`DLT_R_TEL must be a 9-10 digit phone number, got "${tel}"`);
