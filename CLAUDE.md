@@ -31,7 +31,7 @@ in `.env`. Do not run it speculatively — it has real-world side effects.
 Four files in `src/`, run in sequence by `src/index.ts`:
 
 1. **`config.ts`** — loads and validates `.env` into a typed `Config`
-   (vehicle body/chassis number, brand, phone, desired plate number (2-4 digits),
+   (vehicle body/chassis number, brand, phone, desired 4-digit plate number,
    car type, applicant type). Fails fast on missing/malformed values; no
    defaults for personal-data fields. When `DLT_PERS=2`, also requires and
    loads `config.applicant` (trade-registration/passport number, title,
@@ -89,21 +89,13 @@ Four files in `src/`, run in sequence by `src/index.ts`:
 
 ## Known unresolved area
 
-Success/failure detection after the final submit is not fully nailed down.
-What's confirmed so far: the submit response comes back either as `200`
-with the outcome rendered inline (e.g. a rejection like "brand/chassis
-doesn't match DLT's database"), or as a `302` redirect straight to the bare
-home page with no inline verdict. `reserve.ts` now follows through on a
-non-200 by navigating to the "check reservation result" page
-(`?menu=search_m`, sidebar link "ตรวจสอบผลการจอง") and capturing that page's
-content instead (`ReservationResult.checkedResultPage` flags this). What's
-still unverified: whether that result page needs additional interaction
-(e.g. a search/lookup form) to show anything, since no live test has yet
-produced a genuine approval to observe — every real submission so far used
-a fake chassis number and got rejected before reaching that ambiguity. Also
-unconfirmed whether a `302` always means "accepted for processing" as
-opposed to some other silent-failure case (e.g. a stale/expired token) —
-needs more live samples once real vehicle data is used.
+Success/failure detection after the final submit is not yet nailed down —
+there was no clean, confirmed "success" string identified from the original
+HAR recording, and it turned out a native `confirm()` dialog gates the
+submit (see `index.ts` above). If a further alert/dialog appears after
+submission (rather than a page navigation with distinct content), that dialog
+message is likely the real success/failure signal and should be captured
+into `ReservationResult` rather than relying on `page.locator("body").innerText()`.
 
 ## Sensitive files
 

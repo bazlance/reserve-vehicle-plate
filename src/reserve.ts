@@ -11,7 +11,6 @@ export interface ReservationResult {
   pageTitle: string;
   bodyText: string;
   submitStatus: number;
-  checkedResultPage: boolean;
 }
 
 async function clickAndWaitForNav(page: Page, selector: string): Promise<void> {
@@ -100,17 +99,11 @@ export async function runReservation(
           `Available values: ${availablePrefixes.join(", ")}`,
       );
     }
-    await page.type("#r_idcard", config.applicant.idCard, {
-      delay: TYPE_DELAY_MS,
-    });
+    await page.type("#r_idcard", config.applicant.idCard, { delay: TYPE_DELAY_MS });
     await page.selectOption("#prefixZQ", config.applicant.prefix);
-    await page.type("#r_fname", config.applicant.fname, {
-      delay: TYPE_DELAY_MS,
-    });
+    await page.type("#r_fname", config.applicant.fname, { delay: TYPE_DELAY_MS });
     if (config.applicant.lname) {
-      await page.type("#r_lname", config.applicant.lname, {
-        delay: TYPE_DELAY_MS,
-      });
+      await page.type("#r_lname", config.applicant.lname, { delay: TYPE_DELAY_MS });
     }
   }
 
@@ -147,26 +140,11 @@ export async function runReservation(
     .waitForLoadState("load", { timeout: SUBMIT_TIMEOUT_MS })
     .catch(() => {});
 
-  // A 200 on the submit response means DLT rendered the outcome (success or
-  // rejection) directly in that response — same page we're already on. Any
-  // other status (observed: 302 redirecting straight back to the bare home
-  // page) means DLT accepted the request but didn't render a verdict inline
-  // — the real result only shows up on the separate "check reservation
-  // result" page (sidebar link ?menu=search_m, "ตรวจสอบผลการจอง"). Follow
-  // through to it so a 302 doesn't just get reported as "landed on home"
-  // with no actual signal.
-  let checkedResultPage = false;
-  if (submitStatus !== 200) {
-    const resultPageUrl = new URL("?menu=search_m", persUrl).toString();
-    await page.goto(resultPageUrl, { waitUntil: "load", timeout: NAV_TIMEOUT_MS });
-    checkedResultPage = true;
-  }
-
   const screenshotPath = `${screenshotDir}/result-${Date.now()}.png`;
   await page.screenshot({ path: screenshotPath, fullPage: true });
 
   const pageTitle = await page.title();
   const bodyText = (await page.locator("body").innerText()).slice(0, 1000);
 
-  return { confirmId, screenshotPath, pageTitle, bodyText, submitStatus, checkedResultPage };
+  return { confirmId, screenshotPath, pageTitle, bodyText, submitStatus };
 }
