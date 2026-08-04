@@ -42,6 +42,9 @@ async function main(): Promise<void> {
     console.log("\n=== Reservation submitted ===");
     console.log(`Round (confirm id): ${result.confirmId}`);
     console.log(`Submit response status: ${result.submitStatus}`);
+    if (result.checkedResultPage) {
+      console.log("(Submit didn't render a verdict inline — followed through to the \"check reservation result\" page below)");
+    }
     console.log(`Page title: ${result.pageTitle}`);
     console.log(`Screenshot: ${result.screenshotPath}`);
     console.log("\n--- Page text (first 1000 chars) ---");
