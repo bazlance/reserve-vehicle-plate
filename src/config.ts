@@ -20,6 +20,10 @@ export interface Config {
   // pers === "1" these fields are pre-filled read-only from the ThaID
   // login instead.
   applicant?: Applicant;
+  // "HH:MM" 24-hour local time. If set, the app waits until this time
+  // (today) before starting the QR login, rather than starting immediately.
+  // If unset, or if the time has already passed today, it starts right away.
+  startTime?: string;
 }
 
 function required(name: string): string {
@@ -51,6 +55,11 @@ export function loadConfig(): Config {
     throw new Error(`DLT_PERS must be 1 or 2, got "${pers}"`);
   }
 
+  const startTime = process.env.DLT_START_TIME?.trim();
+  if (startTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime)) {
+    throw new Error(`DLT_START_TIME must be in 24-hour "HH:MM" format, got "${startTime}"`);
+  }
+
   let applicant: Applicant | undefined;
   if (pers === "2") {
     const idCard = required("DLT_APPLICANT_ID");
@@ -73,5 +82,6 @@ export function loadConfig(): Config {
     carType: carType as Config["carType"],
     pers: pers as Config["pers"],
     applicant,
+    startTime: startTime || undefined,
   };
 }

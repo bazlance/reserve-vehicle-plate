@@ -13,6 +13,40 @@ function waitForEnter(prompt: string): Promise<void> {
   return new Promise((resolve) => rl.question(prompt, () => { rl.close(); resolve(); }));
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Resolves "HH:MM" against today's date in local time. Reservation rounds
+// open at a specific time, and starting the QR login (let alone clicking
+// through) too early just wastes the session — so the whole flow, not just
+// the reservation steps, waits for this.
+function resolveTargetTime(hhmm: string): Date {
+  const [hours, minutes] = hhmm.split(":").map(Number);
+  const target = new Date();
+  target.setHours(hours, minutes, 0, 0);
+  return target;
+}
+
+async function waitUntil(target: Date): Promise<void> {
+  const targetMs = target.getTime();
+  if (targetMs <= Date.now()) {
+    console.log(`Target start time ${target.toLocaleTimeString()} has already passed today — starting now.`);
+    return;
+  }
+  console.log(`Waiting until ${target.toLocaleTimeString()} to start...`);
+  while (Date.now() < targetMs) {
+    const remainingMs = targetMs - Date.now();
+    if (remainingMs > 60_000) {
+      console.log(`  ${Math.ceil(remainingMs / 60_000)} min remaining...`);
+      await sleep(Math.min(remainingMs, 60_000));
+    } else {
+      await sleep(remainingMs);
+    }
+  }
+  console.log("Target time reached — starting now.");
+}
+
 async function main(): Promise<void> {
   const config = loadConfig();
   fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
@@ -34,6 +68,10 @@ async function main(): Promise<void> {
     console.log(`Dialog (${dialog.type()}): ${dialog.message()}`);
     await dialog.accept();
   });
+
+  if (config.startTime) {
+    await waitUntil(resolveTargetTime(config.startTime));
+  }
 
   try {
     await login(page);

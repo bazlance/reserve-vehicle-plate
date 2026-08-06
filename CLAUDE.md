@@ -82,7 +82,12 @@ Four files in `src/`, run in sequence by `src/index.ts`:
    dialog before it actually submits; Playwright's default behavior with no
    listener is to auto-dismiss (cancel) any dialog, which was silently
    aborting the reservation (looked like the click did nothing). This handler
-   must stay registered before any navigation/click occurs. After the run, it
+   must stay registered before any navigation/click occurs. If `DLT_START_TIME`
+   ("HH:MM", local time) is set, the browser launches immediately but the QR
+   login (and everything after it) waits until that time — reservation
+   rounds open at a specific time, so starting the login too early just
+   risks the session sitting idle before anything useful can happen.
+   After the run, it
    waits for Enter before closing the browser so the user can inspect the
    result visually — success/failure detection from page content alone is
    not yet confirmed reliable (see below).
