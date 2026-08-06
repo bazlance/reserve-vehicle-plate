@@ -73,11 +73,32 @@ async function main(): Promise<void> {
     await waitUntil(resolveTargetTime(config.startTime));
   }
 
+  // A 302 or 500 on the submit means no usable verdict came back (see
+  // reserve.ts for what's confirmed vs. not about what causes these) — retry
+  // from a fresh ?menu=resv_m visit rather than stopping. A 200 (even a
+  // rejection like a brand/chassis mismatch) is a real answer and must not
+  // be retried, since retrying a deterministic outcome just wastes attempts.
+  let attempt = 0;
+  let result: Awaited<ReturnType<typeof runReservation>> | undefined;
+
   try {
-    await login(page);
-    const result = await runReservation(page, config, SCREENSHOT_DIR);
+    while (true) {
+      attempt++;
+      if (attempt > 1) {
+        console.log(`\nAttempt ${attempt}: redirecting to ?menu=resv_m and starting over...`);
+      }
+      await login(page);
+      result = await runReservation(page, config, SCREENSHOT_DIR);
+
+      if (result.submitStatus === 302 || result.submitStatus === 500) {
+        console.log(`\nAttempt ${attempt} got HTTP ${result.submitStatus} — no usable verdict, retrying.`);
+        continue;
+      }
+      break;
+    }
 
     console.log("\n=== Reservation submitted ===");
+    console.log(`Attempts: ${attempt}`);
     console.log(`Round (confirm id): ${result.confirmId}`);
     console.log(`Submit response status: ${result.submitStatus}`);
     console.log(`Page title: ${result.pageTitle}`);
@@ -85,20 +106,12 @@ async function main(): Promise<void> {
     console.log("\n--- Page text (first 1000 chars) ---");
     console.log(result.bodyText);
     console.log("-------------------------------------");
-    if (result.submitStatus === 500) {
-      console.log(
-        "\nHTTP 500 on the submit — this matches the site's Imperva bot-defense " +
-          "block signature seen in prior runs, not a real DLT verdict. This attempt " +
-          "did not go through; just retry."
-      );
-    } else {
-      console.log(
-        `\nGot a real response from DLT (HTTP ${result.submitStatus}), not a WAF block. ` +
-          "That status alone doesn't confirm approval, though — DLT returns 200 for " +
-          "rejections too (e.g. a brand/chassis mismatch). Read the page text/screenshot " +
-          "above to see the actual verdict."
-      );
-    }
+    console.log(
+      `\nGot a real response from DLT (HTTP ${result.submitStatus}). ` +
+        "That status alone doesn't confirm approval, though — DLT returns 200 for " +
+        "rejections too (e.g. a brand/chassis mismatch). Read the page text/screenshot " +
+        "above to see the actual verdict."
+    );
   } catch (err) {
     console.error("\nReservation flow failed:", err instanceof Error ? err.message : err);
     // A thrown error (e.g. a wait timing out) doesn't mean the page didn't
