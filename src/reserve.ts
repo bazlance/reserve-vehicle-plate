@@ -6,17 +6,20 @@ const SUBMIT_TIMEOUT_MS = 90_000; // confirm() dialog round-trip + invisible reC
 // A single fixed delay produces suspiciously uniform keystroke intervals in
 // the submitted behavior_data (e.g. "v":[94,94,93,93,95]) — real human
 // typing (per the original reference capture) swings from ~150ms to over
-// 2000ms within the same field. Randomize per keystroke instead, floored at
-// 110ms — test data (53+ submissions) showed success jump from ~38% in the
-// 90-109ms range to ~92%+ at 110ms+, with no further improvement observed
-// above ~150ms — so the range is kept tight just above that floor (fastest
-// setting the data supports) rather than drifting higher for no evidenced
-// benefit. Occasional longer "hesitation" pauses add real variance on top.
-const TYPE_DELAY_MIN_MS = 110;
-const TYPE_DELAY_MAX_MS = 140;
+// 2000ms within the same field. Randomize per keystroke instead of a fixed
+// value. Test data (53+ submissions) showed success rate by range: 0-29ms
+// 0%, 60-89ms ~15%, 90-109ms ~38%, 110ms+ ~92%+. Set to 60-89ms per explicit
+// request for speed over the proven-safer 110ms+ floor — this tier at least
+// showed some measured direct successes (~15%), unlike 0-29ms (0%). The
+// auto-retry loop in index.ts (on 302/500) is what makes this viable.
+const TYPE_DELAY_MIN_MS = 60;
+const TYPE_DELAY_MAX_MS = 89;
+// No test data isolates hesitation's effect (median-based buckets above are
+// dominated by the base range); reduced chance/amount here purely for more
+// speed per request, not based on evidence like the base range is.
 const HESITATION_CHANCE = 0.1;
-const HESITATION_EXTRA_MIN_MS = 250;
-const HESITATION_EXTRA_MAX_MS = 700;
+const HESITATION_EXTRA_MIN_MS = 5;
+const HESITATION_EXTRA_MAX_MS = 15;
 
 function randomKeystrokeDelay(): number {
   let delay =
