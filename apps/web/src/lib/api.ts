@@ -87,6 +87,8 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new ApiError(message);
   }
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  // Nest sends an empty 200 body when a handler returns null (e.g. no active
+  // run), which res.json() would reject.
+  const text = await res.text();
+  return (text ? JSON.parse(text) : null) as T;
 }
