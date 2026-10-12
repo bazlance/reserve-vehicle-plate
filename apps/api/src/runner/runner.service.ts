@@ -112,7 +112,13 @@ export class RunnerService {
       await l.close();
       return;
     }
-    throw new NotFoundException("No active run or open browser with that id");
+    // Nothing left to close (already stopped, timed out, or the API restarted
+    // since). That's the state the caller wanted, so only a bad id is an error.
+    const exists = await this.prisma.run.findUnique({
+      where: { id: runId },
+      select: { id: true },
+    });
+    if (!exists) throw new NotFoundException("Run not found");
   }
 
   private async closeAllLingering(): Promise<void> {

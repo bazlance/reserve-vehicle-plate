@@ -133,16 +133,21 @@ export default function RunPage() {
             // eslint-disable-next-line @next/next/no-img-element
             <img className="qr" src={`${API_URL}/runs/${id}/screenshot`} alt="Result screenshot" onError={(e) => (e.currentTarget.style.display = "none")} />
           )}
-          <small>HTTP 200 does not mean approved: DLT also returns 200 for rejections. Read the messages above.</small>
+          {state.result.submitStatus !== undefined && (
+            <small>HTTP 200 does not mean approved: DLT also returns 200 for rejections. Read the messages above.</small>
+          )}
         </div>
       )}
 
-      <div className="row" style={{ margin: "12px 0" }}>
-        <button className="danger" onClick={stop} disabled={stopping}>
-          {running ? "Stop run" : "Close browser"}
-        </button>
-        {!running && <small>The browser stays open for 10 minutes after a run so you can inspect it.</small>}
-      </div>
+      {/* A stopped run has already closed its browser; the others leave it open. */}
+      {state.status !== "STOPPED" && (
+        <div className="row" style={{ margin: "12px 0" }}>
+          <button className="danger" onClick={stop} disabled={stopping}>
+            {running ? "Stop run" : "Close browser"}
+          </button>
+          {!running && <small>The browser stays open for 10 minutes after a run so you can inspect it.</small>}
+        </div>
+      )}
 
       <h2>Log</h2>
       <div className="log" ref={logRef}>{state.logs.join("\n") || "No output yet."}</div>

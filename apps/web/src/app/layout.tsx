@@ -10,7 +10,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>
+      {/* Browser extensions inject attributes into <body> before React hydrates. */}
+      <body suppressHydrationWarning>
         <header className="topbar">
           <Link href="/" className="brand">Plate Reserver</Link>
           <Link href="/reservations/new" className="button primary">New reservation</Link>
