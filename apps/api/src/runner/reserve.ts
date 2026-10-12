@@ -1,5 +1,5 @@
 import { Page } from "playwright";
-import { Config } from "./config";
+import { ReservationResult, RunConfig, RunHooks } from "./types";
 
 const NAV_TIMEOUT_MS = 30_000;
 const SUBMIT_TIMEOUT_MS = 90_000; // confirm() dialog round-trip + invisible reCAPTCHA verification observed to take well over 45s in practice
@@ -11,7 +11,7 @@ const SUBMIT_TIMEOUT_MS = 90_000; // confirm() dialog round-trip + invisible reC
 // 0%, 60-89ms ~15%, 90-109ms ~38%, 110ms+ ~92%+. Set to 60-89ms per explicit
 // request for speed over the proven-safer 110ms+ floor — this tier at least
 // showed some measured direct successes (~15%), unlike 0-29ms (0%). The
-// auto-retry loop in index.ts (on 302/500) is what makes this viable.
+// auto-retry loop in runner.service.ts (on 302/500) is what makes this viable.
 const TYPE_DELAY_MIN_MS = 60;
 const TYPE_DELAY_MAX_MS = 89;
 // No test data isolates hesitation's effect (median-based buckets above are
@@ -48,14 +48,6 @@ async function typeHumanLike(
   }
 }
 
-export interface ReservationResult {
-  confirmId: string;
-  screenshotPath: string;
-  pageTitle: string;
-  bodyText: string;
-  submitStatus: number;
-}
-
 async function clickAndWaitForNav(page: Page, selector: string): Promise<void> {
   await Promise.all([
     page.waitForNavigation({ waitUntil: "load", timeout: NAV_TIMEOUT_MS }),
@@ -76,9 +68,12 @@ function extractConfirmId(formAction: string, pageUrl: string): string {
 
 export async function runReservation(
   page: Page,
-  config: Config,
+  config: RunConfig,
   screenshotDir: string,
+  hooks: RunHooks,
 ): Promise<ReservationResult> {
+  hooks.onStatus("FILLING");
+
   // Step 2.1 — scrape the current round's confirm id from the accept-rules
   // form (it rotates between reservation rounds) and accept the rules.
   const formAction = await page.getAttribute("#f_rule", "action");
@@ -88,7 +83,7 @@ export async function runReservation(
     );
   }
   const confirmId = extractConfirmId(formAction, page.url());
-  console.log(`Detected reservation round confirm=${confirmId}`);
+  hooks.log(`Detected reservation round confirm=${confirmId}`);
 
   // Steps 2.1-2.3 are driven as real clicks, not raw HTTP calls. An earlier
   // attempt fired them via context.request (with browser-matched headers) to
@@ -119,7 +114,7 @@ export async function runReservation(
   );
   if (!availableBrands.includes(config.brand)) {
     throw new Error(
-      `DLT_R_BRAND="${config.brand}" is not one of the options on the live page. ` +
+      `Brand "${config.brand}" is not one of the options on the live page. ` +
         `Available values include: ${availableBrands.slice(0, 15).join(", ")}...`,
     );
   }
@@ -131,14 +126,14 @@ export async function runReservation(
   // -in individual (e.g. a company or a foreigner's passport).
   if (config.pers === "2") {
     if (!config.applicant) {
-      throw new Error("pers=2 requires config.applicant but none was loaded");
+      throw new Error("pers=2 requires applicant details but none were provided");
     }
     const availablePrefixes = await page.$$eval("#prefixZQ option", (opts) =>
       opts.map((o) => (o as HTMLOptionElement).value),
     );
     if (!availablePrefixes.includes(config.applicant.prefix)) {
       throw new Error(
-        `DLT_APPLICANT_PREFIX="${config.applicant.prefix}" is not one of the options on the live page. ` +
+        `Applicant title "${config.applicant.prefix}" is not one of the options on the live page. ` +
           `Available values: ${availablePrefixes.join(", ")}`,
       );
     }
@@ -155,6 +150,8 @@ export async function runReservation(
   await typeHumanLike(page, "#r_tel", config.tel);
   await typeHumanLike(page, "#number", config.desiredNumber);
 
+  hooks.onStatus("SUBMITTING");
+
   // Capture the actual HTTP response of the submit POST itself, decoupled
   // from waiting for the page to fully navigate/settle — a slow or fuzzy
   // navigation event shouldn't discard a status code we already have. A 500
@@ -162,7 +159,8 @@ export async function runReservation(
   // DLT verdict; any other status is a genuine DLT response, but note that
   // 200 alone doesn't mean "approved" — DLT returns 200 for rejections too
   // (e.g. a brand/chassis mismatch), so the actual outcome still has to be
-  // read from the page content below.
+  // read from the page content below (and from the dialog messages the
+  // runner collects).
   const responsePromise = page.waitForResponse(
     (res) => res.request().method() === "POST" && res.url() === persUrl,
     { timeout: SUBMIT_TIMEOUT_MS },

@@ -1,21 +1,14 @@
 {
   "name": "reserve-vehicle-plate",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Playwright automation for DLT vehicle plate reservation (reserve.dlt.go.th)",
-  "type": "commonjs",
+  "description": "DLT vehicle plate reservation: NestJS scheduler/runner API + Next.js control panel",
+  "workspaces": ["apps/*"],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "start": "ts-node src/index.ts",
-    "install-browsers": "playwright install chromium"
-  },
-  "dependencies": {
-    "dotenv": "^16.4.5",
-    "playwright": "^1.47.0"
-  },
-  "devDependencies": {
-    "@types/node": "^22.5.0",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.5.4"
+    "dev:api": "npm run start:dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "build": "npm run build -w apps/api && npm run build -w apps/web",
+    "db:migrate": "npm run prisma:migrate -w apps/api",
+    "install-browsers": "npx playwright install chromium"
   }
 }

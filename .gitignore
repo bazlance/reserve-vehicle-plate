@@ -1,5 +1,9 @@
 node_modules/
 dist/
+.next/
 .env
 *.har
 screenshots/
+debug/
+next-env.d.ts
+*.tsbuildinfo
