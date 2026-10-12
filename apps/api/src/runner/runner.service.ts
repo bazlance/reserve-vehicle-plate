@@ -3,6 +3,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  OnModuleInit,
 } from "@nestjs/common";
 import { Reservation, Run } from "@prisma/client";
 import * as fs from "fs";
@@ -48,7 +49,7 @@ function toRunConfig(r: Reservation): RunConfig {
 }
 
 @Injectable()
-export class RunnerService {
+export class RunnerService implements OnModuleInit {
   private readonly logger = new Logger(RunnerService.name);
   private active?: ActiveRun;
   private readonly lingering = new Map<string, { close: () => Promise<void>; timer: NodeJS.Timeout }>();
@@ -57,6 +58,23 @@ export class RunnerService {
     private readonly prisma: PrismaService,
     private readonly events: RunEventsService,
   ) {}
+
+  /**
+   * A run can only be in progress while this process is alive. Any row still
+   * unfinished at boot belongs to an API that died mid-run (crash, restart,
+   * watch reload); leaving it open would also block the dashboard's Run now.
+   */
+  async onModuleInit(): Promise<void> {
+    const { count } = await this.prisma.run.updateMany({
+      where: { finishedAt: null },
+      data: {
+        status: "FAILED",
+        error: "API stopped or restarted while this run was in progress",
+        finishedAt: new Date(),
+      },
+    });
+    if (count > 0) this.logger.warn(`Marked ${count} interrupted run(s) as failed`);
+  }
 
   isBusy(): boolean {
     return this.active !== undefined;
@@ -181,7 +199,9 @@ export class RunnerService {
         const message = `(${dialog.type()}) ${dialog.message()}`;
         dialogMessages.push(message);
         log(`Dialog ${message}`);
-        await dialog.accept();
+        // Throws if the page closed mid-dialog (e.g. Stop); an unhandled
+        // rejection here would otherwise take the whole API down.
+        await dialog.accept().catch(() => {});
       });
 
       // A 302 or 500 on the submit means no usable verdict came back (see

@@ -4,6 +4,12 @@ import { Logger, ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 
+// A stray rejection from a Playwright call on a closing browser must not kill
+// the API (and with it the scheduler); log it instead.
+process.on("unhandledRejection", (reason) => {
+  new Logger("UnhandledRejection").error(reason instanceof Error ? (reason.stack ?? reason.message) : String(reason));
+});
+
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
   app.useGlobalPipes(

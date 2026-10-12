@@ -21,7 +21,8 @@ npm install                      # install all workspaces
 npm run install-browsers         # one-time Chromium download for Playwright
 cp apps/api/.env.example apps/api/.env   # then set DATABASE_URL
 npm run db:migrate               # prisma migrate dev (creates tables)
-npm run dev:api                  # NestJS on http://127.0.0.1:3001
+npm run start:api                # build + run NestJS on http://127.0.0.1:3001 (use for real runs)
+npm run dev:api                  # same, in watch mode — restarts on any file change, which kills a run in progress
 npm run dev:web                  # Next.js on http://127.0.0.1:3000
 npm run build                    # builds both (typecheck is the only verification)
 ```
